@@ -57,7 +57,7 @@ local function _write(value, seen, novault, indent)
         end
       end
     end
-    builder = builder .. "\n" .. (indent or "  "):sub(3) .. "}"
+    builder = builder .. "\n" .. (indent or "  "):sub(2) .. "}"
     str = builder
 
     if not novault and value["vault:name"] ~= nil then
