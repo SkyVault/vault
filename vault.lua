@@ -35,7 +35,7 @@ local function _write(value, seen, novault, indent)
 
   if t == "table" then
     local builder, keys, i = "{\n", {}, 1
-    for k,_ in pairs(value) do 
+    for k,_ in pairs(value) do
       keys[i] = k 
       i = i + 1
     end
@@ -57,7 +57,7 @@ local function _write(value, seen, novault, indent)
         end
       end
     end
-    builder = builder .. "\n}"
+    builder = builder .. "\n" .. (indent or "  "):sub(3) .. "}"
     str = builder
 
     if not novault and value["vault:name"] ~= nil then
