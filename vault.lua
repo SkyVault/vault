@@ -8,10 +8,11 @@ local vault = {
   end
 }
 
-function vault.ext(a, b)
+function vault.ext(a, b, seen)
+  seen = seen or {}
   for k, v in pairs(b) do
     if type(v) == "table" and type(a[k]) == "table" then
-      vault.ext(a[k], v)
+      vault.ext(a[k], v, seen)
     else
       a[k] = v
     end
