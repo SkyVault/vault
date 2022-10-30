@@ -30,44 +30,52 @@ function vault.copy(obj, seen)
 	return setmetatable(res, getmetatable(obj))
 end
 
+local function _is_empty(tbl)
+  return next(tbl) == nil
+end
+
 local function _write(value, seen, novault, indent)
   local t, str = type(value), ""
   if seen[value] then return seen[value] end
-  
+
   if t == "boolean" or t == "number" then str = tostring(value) end
   if t == "string" then str = fmt("\"%s\"", value) end
   if t == "function" then str = "nil --[["..tostring(value).."]]" end
 
   if t == "table" then
-    local builder, keys, i = "{\n", {}, 1
-    for k,_ in pairs(value) do
-      keys[i] = k 
-      i = i + 1
-    end
-    table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
-    for j = 1, #keys do
-      local k = keys[j]
-      local v = value[k]
-      if type(v) ~= "function" then
-        if type(k) ~= "number" then
-          k = "\"" .. k .. "\""
-          builder = builder .. fmt(
-            "%s[%s] = %s,%s", indent or "", k, 
-            _write(v, seen, novault, (indent or "") .. "  "),
-            j < #keys and "\n" or ""
-          )
-        else
-          if j == 1 then builder = builder .. (indent or "") end
-          v = _write(v, seen, novault, (indent or "") .. "  ")
-          builder = builder .. v .. (j < #keys and ", " or "")
+    if _is_empty(value) then
+      str = "{}"
+    else
+      local builder, keys, i = "{\n", {}, 1
+      for k,_ in pairs(value) do
+        keys[i] = k
+        i = i + 1
+      end
+      table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+      for j = 1, #keys do
+        local k = keys[j]
+        local v = value[k]
+        if type(v) ~= "function" then
+          if type(k) ~= "number" then
+            k = "\"" .. k .. "\""
+            builder = builder .. fmt(
+              "%s[%s] = %s,%s", indent or "", k, 
+              _write(v, seen, novault, (indent or "") .. "  "),
+              j < #keys and "\n" or ""
+            )
+          else
+            if j == 1 then builder = builder .. (indent or "") end
+            v = _write(v, seen, novault, (indent or "") .. "  ")
+            builder = builder .. v .. (j < #keys and ", " or "")
+          end
         end
       end
-    end
-    builder = builder .. "\n" .. (indent or "  "):sub(3) .. "}"
-    str = builder
+      builder = builder .. "\n" .. (indent or "  "):sub(3) .. "}"
+      str = builder
 
-    if not novault and value["vault:name"] ~= nil then
-      str = fmt("vault:T(\"%s\"):new %s", value["vault:name"], builder)
+      if not novault and value["vault:name"] ~= nil then
+        str = fmt("vault:T(\"%s\"):new %s", value["vault:name"], builder)
+      end
     end
   end
 

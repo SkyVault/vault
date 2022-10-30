@@ -27,6 +27,8 @@ local v = vault.write(vault.table("test-save") {
   hello = { 1, 2, 3, 4, 5, 6, 7 },
   position = v3,
 
+  empty = {},
+
   deeply = {
     nested = {
       table = {
