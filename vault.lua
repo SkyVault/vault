@@ -9,8 +9,12 @@ local vault = {
 }
 
 function vault.ext(a, b)
-  for k, v in pairs(b) do 
-    a[k] = v 
+  for k, v in pairs(b) do
+    if type(v) == "table" and type(a[k]) == "table" then
+      vault.ext(a[k], v)
+    else
+      a[k] = v
+    end
   end
   return a
 end
