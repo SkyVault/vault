@@ -117,7 +117,7 @@ function vault.initialize(tbl)
   for k, v in pairs(tbl) do
     if type(v) == "table" and v["vault:name"] then
       local init = vault.types[v["vault:name"]]["vault:init"]
-      tbl[k] = init(v)
+      tbl[k] = init and init(v) or v
       vault.initialize(v)
     end
   end
