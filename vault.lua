@@ -42,6 +42,10 @@ local function _write(value, seen, novault, indent)
   if t == "string" then str = fmt("\"%s\"", value) end
   if t == "function" then str = "nil --[["..tostring(value).."]]" end
 
+  if t == "table" or t == "userdata" or t == "function" then
+    seen[value] = str
+  end
+
   if t == "table" then
     if _is_empty(value) then
       str = "{}"
@@ -59,7 +63,7 @@ local function _write(value, seen, novault, indent)
           if type(k) ~= "number" then
             k = "\"" .. k .. "\""
             builder = builder .. fmt(
-              "%s[%s] = %s,%s", indent or "", k, 
+              "%s[%s] = %s,%s", indent or "", k,
               _write(v, seen, novault, (indent or "") .. "  "),
               j < #keys and "\n" or ""
             )
@@ -79,8 +83,6 @@ local function _write(value, seen, novault, indent)
     end
   end
 
-  seen[value] = str
-
   return str
 end
 
@@ -90,8 +92,16 @@ function vault.write(obj)
     _write(obj, {}))
 end
 
+function vault.base(tbl)
+  function tbl:is(name)
+    return tbl["vault:name"] == name
+  end
+end
+
 function vault.table(name, initializer)
-  local function fn(tbl, name, initializer)
+  local function fn(tbl)
+    vault.base(tbl)
+
     if name then
       tbl["vault:name"] = name
       vault.types[name] = tbl
@@ -118,11 +128,11 @@ function vault.table(name, initializer)
   end
 
   if type(name) == "table" then
-    return fn(name, nil, nil)
+    return fn(name)
   end
 
   return function(tbl)
-    return fn(tbl, name, initializer)
+    return fn(tbl)
   end
 end
 
@@ -135,6 +145,15 @@ function vault.initialize(tbl)
     end
   end
   return tbl
+end
+
+function vault.new(name, overrides)
+  local t = vault.types[name]
+  if t then
+    return t:new(overrides)
+  end
+  error("Undefined type: ", name)
+  return nil
 end
 
 return vault
