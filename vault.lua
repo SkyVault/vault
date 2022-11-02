@@ -10,8 +10,11 @@ local vault = {
 
 function vault.ext(a, b, seen)
   seen = seen or {}
+  seen[a] = true
+
   for k, v in pairs(b) do
-    if type(v) == "table" and type(a[k]) == "table" then
+    if not seen[v] and type(v) == "table" and type(a[k]) == "table" then
+      seen[v] = true
       vault.ext(a[k], v, seen)
     else
       a[k] = v
@@ -59,18 +62,26 @@ local function _write(value, seen, novault, indent)
       for j = 1, #keys do
         local k = keys[j]
         local v = value[k]
-        if type(v) ~= "function" then
-          if type(k) ~= "number" then
-            k = "\"" .. k .. "\""
-            builder = builder .. fmt(
-              "%s[%s] = %s,%s", indent or "", k,
-              _write(v, seen, novault, (indent or "") .. "  "),
-              j < #keys and "\n" or ""
-            )
-          else
-            if j == 1 then builder = builder .. (indent or "") end
-            v = _write(v, seen, novault, (indent or "") .. "  ")
-            builder = builder .. v .. (j < #keys and ", " or "")
+        if seen[v] then
+          k = "\"" .. k .. "\""
+          builder = builder .. fmt(
+            "%s[%s] = %s,%s", indent or "", k,
+            "nil --[[ recursive table ]]", j < #keys and "\n" or ""
+          )
+        else
+          if type(v) ~= "function" then
+            if type(k) ~= "number" then
+              k = "\"" .. k .. "\""
+              builder = builder .. fmt(
+                "%s[%s] = %s,%s", indent or "", k,
+                _write(v, seen, novault, (indent or "") .. "  "),
+                j < #keys and "\n" or ""
+              )
+            else
+              if j == 1 then builder = builder .. (indent or "") end
+              v = _write(v, seen, novault, (indent or "") .. "  ")
+              builder = builder .. v .. (j < #keys and ", " or "")
+            end
           end
         end
       end
@@ -92,15 +103,31 @@ function vault.write(obj)
     _write(obj, {}))
 end
 
-function vault.base(tbl)
+function vault.base(tbl, initializer)
   function tbl:is(name)
     return tbl["vault:name"] == name
   end
+
+  local meta = vault.ext({
+    __tostring = function(self)
+      return _write(self, {}, true)
+    end
+  }, getmetatable(tbl) or {})
+
+  if initializer then initializer(tbl) end
+
+  local final = vault.ext(meta, getmetatable(tbl) or {})
+
+  return setmetatable(tbl, final)
 end
 
 function vault.table(name, initializer)
+  if type(name) == "table" then
+    return vault.base(name, initializer)
+  end
+
   local function fn(tbl)
-    vault.base(tbl)
+    vault.base(tbl, initializer)
 
     if name then
       tbl["vault:name"] = name

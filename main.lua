@@ -21,7 +21,14 @@ end) {
   z = 3
 }
 
-local v = vault.write(vault.table("test-save") {
+local a = { a = 69 }
+local b = { b = 420 }
+a.b = b
+b.a = a
+
+local res = vault.table("test-save") {
+  recursive = { a = a, b = b },
+
   this = "is",
   a = "test",
   hello = { 1, 2, 3, 4, 5, 6, 7 },
@@ -35,8 +42,13 @@ local v = vault.write(vault.table("test-save") {
         1, 2, "buckle", "my", "shoe"
       }
     }
-  }
-})
+  },
+}
+
+local rec = vault.ext({ test = true }, { recursive = { a = a, b = b } })
+print(rec)
+
+local v = vault.write(res)
 
 local f = io.open("test-save.lua", "w")
 if f then
