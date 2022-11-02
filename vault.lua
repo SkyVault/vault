@@ -1,6 +1,33 @@
 local fmt = string.format
 local gmeta, smeta = getmetatable, setmetatable
 
+local metemethods = {
+  -- Specials
+  "__index", "__newindex", "__mode", "__call",
+  "__metatable", "__tostring", "__len", "__pairs",
+  "__ipairs", "__gc", "__name", "__close",
+
+  -- Mathematic
+  "__unm", "__add", "__sub", "__mul", "__div",
+  "__idiv", "__mod", "__pow", "__concat",
+
+  -- Bitwise
+  "__band", "__bor", "__bxor",
+  "__bnot", "__shl", "__shr",
+
+  -- Equivalence
+  "__eq", "__lt", "__le",
+}
+
+local function is_meta_key(key)
+  for i = 1, #metemethods do
+    if metemethods[i] == key then
+      return true
+    end
+  end
+  return false
+end
+
 local vault = {
   types = {},
   T = function(self, name)
@@ -103,47 +130,42 @@ function vault.write(obj)
     _write(obj, {}))
 end
 
-function vault.base(tbl, initializer)
+function vault.extract_metatable(tbl)
+  local res = {}
+  for k, v in pairs(tbl) do
+    if is_meta_key(k) then
+      res[k] = v
+    end
+  end
+  return res
+end
+
+function vault.base(tbl)
   function tbl:is(name)
     return tbl["vault:name"] == name
   end
 
-  local meta = vault.ext({
-    __tostring = function(self)
-      return _write(self, {}, true)
-    end
-  }, getmetatable(tbl) or {})
-
-  if initializer then
-    local init_meta = initializer(tbl)
-    if not init_meta or type(init_meta) ~= "table" then
-      error("Table initializer should return metatable, but got: ", init_meta)
-    end
-    meta = vault.ext(meta, init_meta)
-    tbl["vault:init"] = initializer
-  end
-
-  local final = vault.ext(meta, getmetatable(tbl) or {})
-
   function tbl:new(values)
     local c = vault.copy(self)
-    local it, init = vault.ext(c, values or {}), self["vault:init"]
-    local m = getmetatable(it)
-    it = init and init(it) or it
-    local m2 = vault.ext(m, getmetatable(it))
-    return setmetatable(it, m2)
+    local it = vault.ext(c, values or {})
+    return setmetatable(it, getmetatable(self))
   end
 
-  return setmetatable(tbl, final)
+  return setmetatable(
+    tbl,
+    vault.ext({
+      __tostring = function(self) return _write(self, {}, false) end
+    }, vault.extract_metatable(tbl))
+  )
 end
 
-function vault.table(name, initializer)
+function vault.table(name)
   if type(name) == "table" then
-    return vault.base(name, initializer)
+    return vault.base(name)
   end
 
   return function(tbl)
-    tbl = vault.base(tbl, initializer)
+    tbl = vault.base(tbl)
 
     if name then
       tbl["vault:name"] = name
@@ -152,17 +174,6 @@ function vault.table(name, initializer)
 
     return tbl
   end
-end
-
-function vault.initialize(tbl)
-  for k, v in pairs(tbl) do
-    if type(v) == "table" and v["vault:name"] then
-      local init = vault.types[v["vault:name"]]["vault:init"]
-      tbl[k] = init and init(v) or v
-      vault.initialize(v)
-    end
-  end
-  return tbl
 end
 
 function vault.new(name, overrides)

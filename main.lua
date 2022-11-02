@@ -45,8 +45,15 @@ local res = vault.table("test-save") {
   },
 }
 
-local rec = vault.ext({ test = true }, { recursive = { a = a, b = b } })
-print(rec)
+local custom_print = vault.table("c") {
+  x = 123,
+  __tostring = function(self)
+    return "X :: " .. self.x
+  end
+}
+print("HERE: ", custom_print)
+
+res.custom_print = custom_print
 
 local v = vault.write(res)
 
@@ -57,4 +64,4 @@ if f then
 end
 
 local tt = require("test-save")(vault)
-print(tt)
+print("--\n", tt)
