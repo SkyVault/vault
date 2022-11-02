@@ -114,9 +114,25 @@ function vault.base(tbl, initializer)
     end
   }, getmetatable(tbl) or {})
 
-  if initializer then initializer(tbl) end
+  if initializer then
+    local init_meta = initializer(tbl)
+    if not init_meta or type(init_meta) ~= "table" then
+      error("Table initializer should return metatable, but got: ", init_meta)
+    end
+    meta = vault.ext(meta, init_meta)
+    tbl["vault:init"] = initializer
+  end
 
   local final = vault.ext(meta, getmetatable(tbl) or {})
+
+  function tbl:new(values)
+    local c = vault.copy(self)
+    local it, init = vault.ext(c, values or {}), self["vault:init"]
+    local m = getmetatable(it)
+    it = init and init(it) or it
+    local m2 = vault.ext(m, getmetatable(it))
+    return setmetatable(it, m2)
+  end
 
   return setmetatable(tbl, final)
 end
@@ -126,40 +142,15 @@ function vault.table(name, initializer)
     return vault.base(name, initializer)
   end
 
-  local function fn(tbl)
-    vault.base(tbl, initializer)
+  return function(tbl)
+    tbl = vault.base(tbl, initializer)
 
     if name then
       tbl["vault:name"] = name
       vault.types[name] = tbl
     end
 
-    if initializer then
-      tbl["vault:init"] = initializer
-    end
-
-    function tbl:new(values)
-      local c = vault.copy(self)
-      local it, init = vault.ext(c, values or {}), self["vault:init"]
-      local m = getmetatable(it)
-      it = init and init(it) or it
-      local m2 = vault.ext(m, getmetatable(it))
-      return setmetatable(it, m2)
-    end
-
-    return setmetatable(initializer and initializer(tbl) or tbl, {
-      __tostring = function(self)
-        return _write(self, {}, true)
-      end
-    })
-  end
-
-  if type(name) == "table" then
-    return fn(name)
-  end
-
-  return function(tbl)
-    return fn(tbl)
+    return tbl
   end
 end
 
