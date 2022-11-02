@@ -12,5 +12,5 @@ local v2 = vault.table("v2") {
   y = 0,
 }
 
-print(v2) -- { x = 0, y = 0 }
+print(v2:new { x = 32 }) -- { x = 32, y = 0 }
 ```
