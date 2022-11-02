@@ -60,6 +60,12 @@ function vault.copy(obj, seen)
 	return setmetatable(res, getmetatable(obj))
 end
 
+function vault.shallow_copy(obj)
+  local res = {}
+  for k, v in next, obj do res[k] = v end
+  return setmetatable(res, getmetatable(obj) or {})
+end
+
 local function _is_empty(tbl)
   return next(tbl) == nil
 end
@@ -146,9 +152,11 @@ function vault.base(tbl)
   end
 
   function tbl:new(values)
-    local c = vault.copy(self)
-    local it = vault.ext(c, values or {})
-    return setmetatable(it, getmetatable(self))
+    return vault.ext(vault.copy(self), values or {})
+  end
+
+  function tbl:new_fast(values)
+    return vault.ext(vault.shallow_copy(self), values or {})
   end
 
   return setmetatable(
