@@ -7,15 +7,7 @@ local vault = require("vault")
 
 local t = vault.table { banana = "tomato" }
 
-print(t)
-
-local v3 = vault.table("v3", function(self)
-  return setmetatable(self, {
-    __tostring = function(self)
-      return fmt("(%d %d %d)", self.x, self.y, self.z)
-    end,
-  })
-end) {
+local v3 = vault.table("v3") {
   x = 10,
   y = 32,
   z = 3
@@ -26,6 +18,11 @@ local b = { b = 420 }
 a.b = b
 b.a = a
 
+local a_random_table = {
+  hello = "world",
+  [420] = { 1, 2, 3, { four = true } },
+}
+
 local res = vault.table("test-save") {
   recursive = { a = a, b = b },
 
@@ -35,6 +32,8 @@ local res = vault.table("test-save") {
   position = v3,
 
   empty = {},
+
+  a_random_table = a_random_table,
 
   deeply = {
     nested = {

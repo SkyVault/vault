@@ -50,6 +50,12 @@ function vault.ext(a, b, seen)
   return a
 end
 
+function vault.ext2(a)
+  return function(b)
+    return vault.ext(a, b)
+  end
+end
+
 function vault.copy(obj, seen)
 	seen = seen or {}
 	if type(obj) ~= 'table' then return obj end
@@ -87,39 +93,49 @@ local function _write(value, seen, novault, indent)
       str = "{}"
     else
       local builder, keys, i = "{\n", {}, 1
+
       for k,_ in pairs(value) do
         keys[i] = k
         i = i + 1
       end
+
       table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+
       for j = 1, #keys do
         local k = keys[j]
         local v = value[k]
         if seen[v] then
           k = "\"" .. k .. "\""
-          builder = builder .. fmt(
-            "%s[%s] = %s,%s", indent or "", k,
+          builder = builder .. fmt( "%s[%s] = %s,%s", indent or "", k,
             "nil --[[ recursive table ]]", j < #keys and "\n" or ""
           )
         else
           if type(v) ~= "function" then
+            local id = (indent or "") .. "  "
             if type(k) ~= "number" then
+              if type(keys[j - 1] or nil) == "number" then
+                builder = builder .. "\n" .. (indent or " "):sub(4)
+              end
               k = "\"" .. k .. "\""
               builder = builder .. fmt(
                 "%s[%s] = %s,%s", indent or "", k,
-                _write(v, seen, novault, (indent or "") .. "  "),
+                _write(v, seen, novault, id),
                 j < #keys and "\n" or ""
               )
             else
-              if j == 1 then builder = builder .. (indent or "") end
-              v = _write(v, seen, novault, (indent or "") .. "  ")
-              builder = builder .. v .. (j < #keys and ", " or "")
+              if j == 1 then
+                builder = builder .. (indent or "")
+              end
+              builder = builder .. fmt(
+                j < #keys and "%s, " or "%s",
+                _write(v, seen, novault, id)
+              )
             end
           end
         end
       end
-      builder = builder .. "\n" .. (indent or "  "):sub(3) .. "}"
-      str = builder
+      builder = builder .. "\n" .. (indent or " "):sub(3) .. "}"
+      str = str .. builder
 
       if not novault and value["vault:name"] ~= nil then
         str = fmt("vault:T(\"%s\"):new %s", value["vault:name"], builder)
@@ -133,7 +149,7 @@ end
 function vault.write(obj)
   return fmt(
   "return function(vault)\n  return %s\nend",
-    _write(obj, {}))
+    _write(obj, {}, false, "    "))
 end
 
 function vault.extract_metatable(tbl)
@@ -162,7 +178,7 @@ function vault.base(tbl)
   return setmetatable(
     tbl,
     vault.ext({
-      __tostring = function(self) return _write(self, {}, false) end
+      __tostring = function(self) return _write(self, {}, true, " ") end
     }, vault.extract_metatable(tbl))
   )
 end
