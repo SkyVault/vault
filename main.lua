@@ -50,17 +50,15 @@ local custom_print = vault.table("c") {
     return "X :: " .. self.x
   end
 }
-print("HERE: ", custom_print)
 
 res.custom_print = custom_print
 
 local v = vault.write(res)
 
-local f = io.open("test-save.lua", "w")
+local f = io.open("testsave.lua", "w")
 if f then
   f:write(v)
   f:close()
 end
 
-local tt = require("test-save")(vault)
-print("--\n", tt)
+local tt = require("testsave")(vault)

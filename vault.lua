@@ -19,6 +19,21 @@ local metemethods = {
   "__eq", "__lt", "__le",
 }
 
+local function is_identifier(s)
+  for w in string.gmatch(s, "[A-Za-z|_][A-Za-z|_|0-9]+") do
+    if #w == #s then
+      return true
+    end
+  end
+  return false
+end
+
+assert(is_identifier("Hello"))
+assert(is_identifier("hELlo_woRld"))
+assert(not is_identifier("hello-world"))
+assert(is_identifier("hELlo_2woRld32"))
+assert(not is_identifier("2hello-world"))
+
 local function is_meta_key(key)
   for i = 1, #metemethods do
     if metemethods[i] == key then
@@ -134,12 +149,14 @@ local function _write(value, seen, novault, indent)
               end
 
             elseif k ~= nil then
-              k = "\"" .. k .. "\""
+              if not is_identifier(k) then
+                k = "[\"" .. k .. "\"]"
+              end
 
               builder = builder .. (indent or "")
 
               builder = builder .. fmt(
-                "[%s] = %s,%s", k,
+                "%s = %s,%s", k,
                 _write(v, seen, novault, id),
                 j < #keys and "\n" or ""
               )
