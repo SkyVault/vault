@@ -95,11 +95,20 @@ local function _write(value, seen, novault, indent)
       local builder, keys, i = "{\n", {}, 1
 
       for k,_ in pairs(value) do
-        keys[i] = k
+        local skip = false
+        if novault and k == "vault:name" then
+          skip = true
+        end
+
+        if not skip then
+          keys[i] = k
+        end
         i = i + 1
       end
 
-      table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
+      table.sort(keys, function(a, b)
+        return tostring(a) < tostring(b)
+      end)
 
       for j = 1, #keys do
         local k = keys[j]
@@ -107,32 +116,37 @@ local function _write(value, seen, novault, indent)
         if seen[v] then
           k = "\"" .. k .. "\""
           builder = builder .. fmt( "%s[%s] = %s,%s", indent or "", k,
-            "nil --[[ recursive table ]]", j < #keys and "\n" or ""
+            "nil", j < #keys and "\n" or "", novault and "" or " --[[ recursive table ]]"
           )
         else
           if type(v) ~= "function" then
             local id = (indent or "") .. "  "
-            if type(k) ~= "number" then
-              if type(keys[j - 1] or nil) == "number" then
-                builder = builder .. "\n" .. (indent or " "):sub(4)
+            if type(k) == "number" then
+              if j == 1 then builder = builder .. (indent or "") end
+              if k ~= v then builder = builder .. "[" .. k .. "] = " end
+
+              builder = builder .. _write(v, seen, novault, id)
+
+              if k ~= v and type(keys[j + 1]) == "string" then
+                builder = builder .. fmt(",%s", j < #keys and "\n" or "")
+              else
+                builder = builder .. fmt("%s", j < #keys and ", " or "")
               end
+
+            elseif k ~= nil then
               k = "\"" .. k .. "\""
+
+              builder = builder .. (indent or "")
+
               builder = builder .. fmt(
-                "%s[%s] = %s,%s", indent or "", k,
+                "[%s] = %s,%s", k,
                 _write(v, seen, novault, id),
                 j < #keys and "\n" or ""
-              )
-            else
-              if j == 1 then
-                builder = builder .. (indent or "")
-              end
-              builder = builder .. fmt(
-                j < #keys and "%s, " or "%s",
-                _write(v, seen, novault, id)
               )
             end
           end
         end
+        ::continue::
       end
       builder = builder .. "\n" .. (indent or " "):sub(3) .. "}"
       str = str .. builder
@@ -146,10 +160,10 @@ local function _write(value, seen, novault, indent)
   return str
 end
 
-function vault.write(obj)
-  return fmt(
-  "return function(vault)\n  return %s\nend",
-    _write(obj, {}, false, "    "))
+function vault.write(obj, novault)
+  local f = novault and "%s" or "return function(vault)\n  return %s\nend"
+  return fmt(f,
+    _write(obj, {}, novault, "    "))
 end
 
 function vault.extract_metatable(tbl)
