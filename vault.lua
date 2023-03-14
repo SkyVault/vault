@@ -1,6 +1,10 @@
 local fmt = string.format
 local gmeta, smeta = getmetatable, setmetatable
 
+function string.starts(String, Start)
+  return string.sub(String, 1, string.len(Start)) == Start
+end
+
 local metemethods = {
   -- Specials
   "__index", "__newindex", "__mode", "__call",
@@ -45,10 +49,24 @@ end
 
 local vault = {
   types = {},
+  interfaces = {},
   T = function(self, name)
     return self.types[name]
-  end
+  end,
+  meta = {}
 }
+
+function vault.interface(name, ...)
+  vault.interfaces[name] = { ... }
+end
+
+function vault.implements(...)
+  return { ["vault:implements"] = { ... }, }
+end
+
+function vault.using(...)
+  return { ["vault:using"] = { ... }, }
+end
 
 function vault.ext(a, b, seen)
   seen = seen or {}
@@ -72,13 +90,13 @@ function vault.ext2(a)
 end
 
 function vault.copy(obj, seen)
-	seen = seen or {}
-	if type(obj) ~= 'table' then return obj end
-	if seen and seen[obj] then return seen[obj] end
-	local res = {}
-	seen[obj] = res
-	for k, v in next, obj do res[vault.copy(k, seen)] = vault.copy(v, seen) end
-	return setmetatable(res, getmetatable(obj))
+  seen = seen or {}
+  if type(obj) ~= 'table' then return obj end
+  if seen and seen[obj] then return seen[obj] end
+  local res = {}
+  seen[obj] = res
+  for k, v in next, obj do res[vault.copy(k, seen)] = vault.copy(v, seen) end
+  return setmetatable(res, getmetatable(obj))
 end
 
 function vault.shallow_copy(obj)
@@ -97,7 +115,7 @@ local function _write(value, seen, novault, indent)
 
   if t == "boolean" or t == "number" then str = tostring(value) end
   if t == "string" then str = fmt("\"%s\"", value) end
-  if t == "function" then str = "nil --[["..tostring(value).."]]" end
+  if t == "function" then str = "nil --[[" .. tostring(value) .. "]]" end
 
   if t == "table" or t == "userdata" or t == "function" then
     seen[value] = str
@@ -109,7 +127,7 @@ local function _write(value, seen, novault, indent)
     else
       local builder, keys, i = "{\n", {}, 1
 
-      for k,_ in pairs(value) do
+      for k, _ in pairs(value) do
         local skip = false
         if novault and k == "vault:name" then
           skip = true
@@ -130,9 +148,9 @@ local function _write(value, seen, novault, indent)
         local v = value[k]
         if seen[v] then
           k = "\"" .. k .. "\""
-          builder = builder .. fmt( "%s[%s] = %s,%s", indent or "", k,
-            "nil", j < #keys and "\n" or "", novault and "" or " --[[ recursive table ]]"
-          )
+          builder = builder .. fmt("%s[%s] = %s,%s", indent or "", k,
+                "nil", j < #keys and "\n" or "", novault and "" or " --[[ recursive table ]]"
+              )
         else
           if type(v) ~= "function" then
             local id = (indent or "") .. "  "
@@ -147,8 +165,8 @@ local function _write(value, seen, novault, indent)
               else
                 builder = builder .. fmt("%s", j < #keys and ", " or "")
               end
-
             elseif k ~= nil then
+              -- TODO: handle non string keys
               if not is_identifier(k) then
                 k = "[\"" .. k .. "\"]"
               end
@@ -156,10 +174,10 @@ local function _write(value, seen, novault, indent)
               builder = builder .. (indent or "")
 
               builder = builder .. fmt(
-                "%s = %s,%s", k,
-                _write(v, seen, novault, id),
-                j < #keys and "\n" or ""
-              )
+                    "%s = %s,%s", k,
+                    _write(v, seen, novault, id),
+                    j < #keys and "\n" or ""
+                  )
             end
           end
         end
@@ -195,7 +213,7 @@ end
 
 function vault.base(tbl)
   function tbl:is(name)
-    return tbl["vault:name"] == name
+    return tbl["vault:name"] == name or tbl["vault:base"] == name
   end
 
   function tbl:new(values)
@@ -222,6 +240,65 @@ function vault.table(name)
   return function(tbl)
     tbl = vault.base(tbl)
 
+    function tbl:implements(...)
+      local is = { ... }
+      for _, v in ipairs(is) do
+        if not vault.meta[self["vault:name"]].implements[v] then
+          return false
+        end
+      end
+      return true
+    end
+
+    vault.meta[name] = {
+      bases = {},
+      using = {},
+      implements = {},
+    }
+
+    local meta = vault.meta[name]
+
+    for i, v in ipairs(tbl) do
+      -- handle interfaces
+      if type(v) == "table" and v["vault:implements"] then
+        local impls = v["vault:implements"]
+        for _, inter in ipairs(impls) do
+          local interface = vault.interfaces[inter]
+          assert(interface, "Vault Error: Unknown interface '" .. tostring(inter) .. "'")
+          for _, m in ipairs(interface) do
+            assert(
+              tbl[m] and type(tbl[m]) == "function",
+              string.format("Vault Error: %s does not have method '%s', required by interface '%s'",
+                tbl["vault:name"] or "table", m, i
+              )
+            )
+          end
+
+          meta.implements[inter] = inter
+        end
+
+        tbl[i] = nil
+      end
+
+      -- handle usings
+      if type(v) == "table" and v["vault:using"] then
+        local using = v["vault:using"]
+        for _, u in ipairs(using) do
+          local using_table = vault:T(u)
+          for k, uv in pairs(using_table) do
+            if not string.starts(k, "vault:") and k ~= "new" and k ~= "new_fast" and k ~= "is" then
+              tbl[k] = uv
+            end
+          end
+
+          meta.using[u] = u
+        end
+
+        tbl[i] = nil
+      end
+    end
+
+
     if name then
       tbl["vault:name"] = name
       vault.types[name] = tbl
@@ -229,6 +306,18 @@ function vault.table(name)
 
     return tbl
   end
+end
+
+-- function vault.variant(name)
+--   return function(tbl)
+--   end
+-- end
+
+function vault.echo(obj)
+  if type(obj) == "table" and not obj['vault:name'] then
+    obj = vault.base(obj)
+  end
+  io.write(vault.write(obj, true))
 end
 
 function vault.new(name, overrides)

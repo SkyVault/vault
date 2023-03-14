@@ -62,3 +62,29 @@ if f then
 end
 
 local tt = require("testsave")(vault)
+
+-- interface testing
+
+vault.interface("has-key", "key")
+vault.interface("has-area", "area")
+
+-- should warn
+local v2 = vault.table("v2") { x = 0, y = 0 }
+
+vault.table("shape") {
+  pos = vault.new("v2")
+}
+
+vault.table("test") {
+  vault.implements("has-key", "has-area"),
+  vault.using("shape"),
+  size = vault.new("v2"),
+  key = function(self)
+    return string.format("%f%f%f%f", self.pos.x, self.pos.y, self.size.x, self.size.y)
+  end,
+  area = function(self) return self.size.x * self.size.y end,
+}
+
+local t = vault.new("test", { size = vault.new("v2", { x = 32.0, y = 16.0 }) })
+
+print(t:key(), " ", t:area(), t:implements("has-key", "has-area"))
