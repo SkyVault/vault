@@ -1,26 +1,25 @@
 local fmt = string.format
-local gmeta, smeta = getmetatable, setmetatable
 
 function string.starts(String, Start)
   return string.sub(String, 1, string.len(Start)) == Start
 end
 
-local metemethods = {
-  -- Specials
-  "__index", "__newindex", "__mode", "__call",
-  "__metatable", "__tostring", "__len", "__pairs",
-  "__ipairs", "__gc", "__name", "__close",
+local metamethods = {
+    -- Specials
+    "__index", "__newindex", "__mode", "__call",
+    "__metatable", "__tostring", "__len", "__pairs",
+    "__ipairs", "__gc", "__name", "__close",
 
-  -- Mathematic
-  "__unm", "__add", "__sub", "__mul", "__div",
-  "__idiv", "__mod", "__pow", "__concat",
+    -- Mathematic
+    "__unm", "__add", "__sub", "__mul", "__div",
+    "__idiv", "__mod", "__pow", "__concat",
 
-  -- Bitwise
-  "__band", "__bor", "__bxor",
-  "__bnot", "__shl", "__shr",
+    -- Bitwise
+    "__band", "__bor", "__bxor",
+    "__bnot", "__shl", "__shr",
 
-  -- Equivalence
-  "__eq", "__lt", "__le",
+    -- Equivalence
+    "__eq", "__lt", "__le",
 }
 
 local function is_identifier(s)
@@ -39,8 +38,8 @@ assert(is_identifier("hELlo_2woRld32"))
 assert(not is_identifier("2hello-world"))
 
 local function is_meta_key(key)
-  for i = 1, #metemethods do
-    if metemethods[i] == key then
+  for i = 1, #metamethods do
+    if metamethods[i] == key then
       return true
     end
   end
@@ -48,12 +47,12 @@ local function is_meta_key(key)
 end
 
 local vault = {
-  types = {},
-  interfaces = {},
-  T = function(self, name)
-    return self.types[name]
-  end,
-  meta = {}
+    types = {},
+    interfaces = {},
+    T = function(self, name)
+      return self.types[name]
+    end,
+    meta = {}
 }
 
 function vault.interface(name, ...)
@@ -149,7 +148,7 @@ local function _write(value, seen, novault, indent)
         if seen[v] then
           k = "\"" .. k .. "\""
           builder = builder .. fmt("%s[%s] = %s,%s", indent or "", k,
-                "nil", j < #keys and "\n" or "", novault and "" or " --[[ recursive table ]]"
+                  "nil", j < #keys and "\n" or "", novault and "" or " --[[ recursive table ]]"
               )
         else
           if type(v) ~= "function" then
@@ -174,9 +173,9 @@ local function _write(value, seen, novault, indent)
               builder = builder .. (indent or "")
 
               builder = builder .. fmt(
-                    "%s = %s,%s", k,
-                    _write(v, seen, novault, id),
-                    j < #keys and "\n" or ""
+                      "%s = %s,%s", k,
+                      _write(v, seen, novault, id),
+                      j < #keys and "\n" or ""
                   )
             end
           end
@@ -198,7 +197,7 @@ end
 function vault.write(obj, novault)
   local f = novault and "%s" or "return function(vault)\n  return %s\nend"
   return fmt(f,
-    _write(obj, {}, novault, "    "))
+          _write(obj, {}, novault, "    "))
 end
 
 function vault.extract_metatable(tbl)
@@ -206,6 +205,7 @@ function vault.extract_metatable(tbl)
   for k, v in pairs(tbl) do
     if is_meta_key(k) then
       res[k] = v
+      tbl[k] = nil
     end
   end
   return res
@@ -225,11 +225,34 @@ function vault.base(tbl)
   end
 
   return setmetatable(
-    tbl,
-    vault.ext({
-      __tostring = function(self) return _write(self, {}, true, " ") end
-    }, vault.extract_metatable(tbl))
-  )
+          tbl,
+          vault.ext({
+              __tostring = function(self) return _write(self, {}, true, " ") end
+          }, vault.extract_metatable(tbl))
+      )
+end
+
+function vault.enum(tbl)
+  local xs = {}
+
+  for i = 1, #tbl do
+    xs[tbl[i]] = i
+  end
+
+  function xs:match(v)
+    return function(matches)
+      for k, _ in pairs(self) do
+        if k ~= "match" then
+          assert(matches[k], string.format("Exhaustive check, missing key %s", k))
+          if v == self[k] then
+            return matches[k]()
+          end
+        end
+      end
+    end
+  end
+
+  return xs
 end
 
 function vault.table(name)
@@ -251,9 +274,9 @@ function vault.table(name)
     end
 
     vault.meta[name] = {
-      bases = {},
-      using = {},
-      implements = {},
+        bases = {},
+        using = {},
+        implements = {},
     }
 
     local meta = vault.meta[name]
@@ -267,10 +290,10 @@ function vault.table(name)
           assert(interface, "Vault Error: Unknown interface '" .. tostring(inter) .. "'")
           for _, m in ipairs(interface) do
             assert(
-              tbl[m] and type(tbl[m]) == "function",
-              string.format("Vault Error: %s does not have method '%s', required by interface '%s'",
-                tbl["vault:name"] or "table", m, i
-              )
+                tbl[m] and type(tbl[m]) == "function",
+                string.format("Vault Error: %s does not have method '%s', required by interface '%s'",
+                    tbl["vault:name"] or "table", m, i
+                )
             )
           end
 
